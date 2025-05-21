@@ -1,0 +1,198 @@
+GitOps bevezetes-----------------------------------------------------------------------------------
+
+Mi az a GitOps?
+  - A GitOps a DevOps egy alcsoportja, és egy olyan stratégia, amely a mai kor igényeihez igazodik.
+  - Lényege, hogy mindent kódban kell tárolni, és ezt a kódot a Git (verziókezelő rendszer) kezeli.
+  - A változtatásokat kizárólag a Giten keresztül lehet alkalmazni.
+
+Miért van rá szükség?
+  - A GitOps egy gyakori automatizálási problémát old meg: a változások nyomon követését.
+  - Problémát jelent a kézi módosítások végzése az automatizált infrastruktúrán, ami elsodródáshoz vezethet (az infrastruktúra eltér az automatizált állapottól).
+  - Hiányzik a változások előzménye (ki, mikor, mi volt a kimenet), és nehéz ezeket egy helyen nyomon követni.
+  - A mikroszolgáltatás-architektúra nagy komplexitással jár, ami rendszeres változtatásokat igényel mind az alkalmazás, mind az infrastruktúra szintjén.
+
+Hogyan működik a GitOps?
+  - Minden kód a Gitben van: Az alkalmazáskód, a CI/CD automatizálási kód (pl. Jenkins pipeline),
+    és az infrastruktúra automatizálási kód (pl. Terraform, CloudFormation) is Git tárolókban kerül tárolásra.
+  - Verziózott változások: Ennek köszönhetően minden változás verziózott és nyomon követhető.
+  - Korlátozott hozzáférés: Az adminisztrátorok és a DevOps/SRE csapat csak a Githez kap hozzáférést, az infrastruktúrához közvetlenül nem.
+    Ez megakadályozza a kézi módosításokat.
+  - GitOps eszközök: Vannak speciális eszközök (pl. GitHub Actions, GitLab, ArgoCD, Tekton, Jenkins X), amelyek figyelik a Git tárolókban lévő kód változásait,
+    és automatikusan alkalmazzák azokat az infrastruktúrán, a pipeline-okban és az alkalmazásokon.
+
+A GitOps lényege egyszerűen:
+Ahelyett, hogy a rendszermérnökök közvetlenül módosítanák az infrastruktúrát, minden változást a Gitben lévő kódban kell rögzíteni.
+Ezeket a változásokat aztán GitOps eszközök automatikusan alkalmazzák, biztosítva a nyomon követhetőséget, a konzisztenciát és a kézi hibák kiküszöbölését.
+
+# Projekt Architektúra – CI/CD két GitHub tárolóval------------------------------------------------
+
++------------------+         +---------------------------------------------+         +------------------+
+|   Visual Studio  |         |             GitHub - Terraform Repo        |         | GitHub - App Repo |
+|     Code (VSCode)|         |  GitHub Actions (Terraform Workflow)       |         | Build/Test/Deploy |
++--------+---------+         +-----------------------------+---------------+         +---------+--------+
+         |                                               |                                     |
+         | commit                                        |                                     |
+         |                                               |                                     |
+         v                                               v                                     v
++----------------------+         +-----------------------------+               +-----------------------------+
+| Fetch stage branch   |         |  Terraform plan & validate  |               |        Fetch code           |
++----------------------+         +-----------------------------+               +-----------------------------+
+         |                                               |                                     |
+         |                                               v                                     v
+         |                                     +------------------+                  +------------------------+
+         |                                     | Pull Request →   |                  |       Maven build      |
+         |                                     |     Merge to main|                  |      & test (quality)  |
+         |                                     +------------------+                  +------------------------+
+         |                                               |                                     |
+         v                                               v                                     v
++----------------------------+     +------------------------------+              +---------------------------+
+| Terraform main branch      | --> |   terraform apply            |              |   SonarCloud analysis     |
++----------------------------+     +------------------------------+              +---------------------------+
+         |                                                              	      |
+         v                                                              	      v
++--------------------------------------------+       +------------------------+  +---------------------------+
+|             AWS Cloud                      | <---- | Amazon ECR (image repo)|<--|       Docker build       |
+|                                            |       +------------------------+  +---------------------------+
+|  +----------------------+                  |
+|  | Amazon EKS Cluster    | <--- Helm Charts (includes image tag) ------------+
+|  |  with VPC subnet      |                 |
+|  +----------------------+                  |
++--------------------------------------------+
+
+Áttekintés:
+Két GitHub repository:
+  infrastructure-repo -> Terraform kód
+  application-repo -> Alkalmazás (Java, Docker, Helm)
+
+Minden repo saját GitHub Actions workflow-val rendelkezik.
+Minden fejlesztés a VS Code segítségével történik.
+
+1. Infrastruktúra Workflow (Terraform)
+Tároló: infrastructure-repo
+CI/CD eszköz: GitHub Actions
+Lépések:
+  1. Fejlesztés: VSCode -> Staging ág
+  
+  2. GitHub Actions Workflow:
+      terraform validate
+      terraform plan
+      Eredmények megtekintése, de nincs módosítás
+
+  3. Pull Request staging -> main
+
+  4. Approval/jóváhagyás & Merge/beolvad
+
+  5. Deploy/Telepítés: terraform apply
+      -> Provisioning: AWS VPC, EKS Cluster
+
+2. Alkalmazás Workflow (Build, Test & Deploy)
+Tároló: application-repo
+CI/CD eszközök: GitHub Actions, SonarCloud, Maven, Docker, Helm
+Lépések:
+  1. Fejlesztés: VSCode -> commit -> GitHub
+  2. GitHub Actions Workflow:
+      Maven build & test
+      SonarCloud analysis (quality gate)
+      Docker build
+      Push image -> Amazon ECR
+      Deploy image -> EKS Helm Chart
+        Helm chart -> automatikus image tag frissítés
+
+Infrastruktúra komponensek (AWS):
+  Amazon EKS (Kubernetes Cluster)
+  Amazon ECR (Docker image repository)
+  VPC subnet (hálózat)
+
+Megjegyzés:
+  A staging ágban történik a validáció, a main ágba kerül minden véglegesítés.
+  Helm Chart automatikusan figyeli az image tag változást.
+  A teljes folyamat automatizált CI/CD pipeline-on keresztül történik.
+
+# Prepare GitHub Repository – Lépésről lépésre-----------------------------------------------------
+
+1. Fork & Clone – Tárolók előkészítése
+    Nyisd meg a GitHub oldalt és jelentkezz be.
+    Navigálj az alábbi URL-re: https://github.com/hkhcoder/iac-vprofile
+    Kattints a legördülő menüre és válaszd: "Create new fork"
+    Vedd ki a pipát a "Copy the main branch only" opció elől – szükség van main és stage ágakra is.
+    Kattints a "Create Fork" gombra.
+    Ismételd meg a folyamatot a másik repository-val: https://github.com/hkhcoder/vprofile-action
+    Kattints a legördülő menüre és válaszd: "Create new fork"
+    (Ebben csak a main ág van, ott nem baj, ha marad a pipa.)
+    Kattints a "Create Fork" gombra.
+
+2. SSH kulcs generálása és hozzáadása GitHub-hoz
+   Nyisd meg a Git Bash (Windows) vagy Terminal (Mac) alkalmazást.
+  
+cd ~/.ssh	# Navigálj az SSH mappába
+ssh-keygen	# Hozz létre új SSH kulcsot: add meg a fájlnevet pl. actions, majd Enter többször
+ls		# Látható lesz az action és actions.pub fájlok.
+cat actions.pub	# Másold ki a nyilvános kulcs tartalmát:
+
+3. SSH kulcs hozzáadása GitHub-hoz
+    GitHub jobb felső sarok -> Settings
+    Navigálj ide: "SSH and GPG keys" -> "New SSH key"
+    Adj nevet pl.: actionskey, és illeszd be a nyilvános kulcs tartalmát a key inputba.
+    Kattints: "Add SSH key"
+    Add meg GitHub jelszavad, ha kéri.
+
+4. SSH konfiguráció a Git számára
+   A privát kulcs használatához futtasd az alábbi parancsot:
+
+export GIT_SSH_COMMAND="ssh -i ~/.ssh/actions"
+
+5. Mappastruktúra előkészítése
+Hozd létre a cél mappát, pl.:
+
+mkdir ~/Desktop/Krissz91
+cd ~/Desktop/Krissz91
+
+6. Klónozd a tárolókat SSH-val
+  IAC repo:
+    Navigálj az alábbi URL-re: https://github.com/hkhcoder/iac-vprofile
+    Kattints a Code-ra és az ssh URL-t másold ki és a mappaban (/Desktop/Krissz91) a git clone parancs után máasold be az URL-t.
+    git clone git@github.com:devops4sure/iac-vprofile.git
+
+  Action repo:
+    Navigálj az alábbi URL-re: https://github.com/hkhcoder/vprofile-action
+    Kattints a Code-ra és az ssh URL-t másold ki és a mappaban (/Desktop/Krissz91) a git clone parancs után máasold be az URL-t.
+    git clone git@github.com:devops4sure/vprofile-action.git
+    ls paranccsal ellenőrizzük, hogy megvan-e a kettő mappa vprofile-action és iac-vprofile
+
+7. Git repo konfigurálása az SSH kulcs használatára
+Menj be a repo könyvtárába, pl.:
+
+cd iac-vprofile
+git config core.sshCommand "ssh -i ~/.ssh/actions -F /dev/null"
+
+Ugyanezt ismételd meg a másik repo mappájában is.
+
+cd ../vprofile-action/
+git config core.sshCommand "ssh -i ~/.ssh/actions -F /dev/null"
+
+8. (Opcionális) Git globális konfiguráció
+Ha még nincs beállítva:
+
+git config --global user.name "<GitHub-felhasználónév>"
+git config --global user.email "<user@email.com>"
+
+9. Másolat készítése staging/fő ágra bontva
+Készíts másolatot a staging céljára:
+
+cd ..
+ls				# itt kell, hogy legyél /Desktop/Krissz91 és a két mappat kell,hogy lásd vprofile-action és iac-vprofile
+cp -r iac-vprofile main-iac	# Most már három mappa van vprofile-action, iac-vprofile és main-iac
+
+10. Ágak kezelése
+Ellenőrizd az elérhető ágakat:
+
+cd iac-vprofile
+git branch -a		# Látjuk az ágakat és azt is amiben vagyunk
+git checkout stage	# Váltás a stage ágra
+ls
+git status		# On branch stage
+
+11. Általános szabály:
+  Minden fejlesztést a stage branchben végezz!
+  Ha kész és tesztelt a változtatás, merge a main ágba.
+  A main ághoz tartozik a Terraform apply -> infrastruktúra változások.
