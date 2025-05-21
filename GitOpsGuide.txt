@@ -509,4 +509,115 @@ Amit ki lehet emelni tanulságként:
   Tiszta naplózás: színek nélkül, interakciómentesen fut, így automatizált környezetben is jól viselkedik.
   Apply csak main-en: staging csak plan-t futtat, élesítés csak a main ágon történik – ez jó gyakorlat.
 
+# Main Workflow – Infrastruktúra létrehozása és deploy folyamata-----------------------------------
+
+1. Infrastruktúra alkalmazása (Terraform Apply)
+     A teljes VPC és EKS fürt létrehozása Terraformmal történik.
+     Ez valódi költségekkel járhat az AWS számlán.
+     A Terraform apply csak akkor fut, ha push történik a main ágra.
+
+2. Feltételhez kötött futtatás
+     A Terraform Apply parancs:
+
+terraform apply -auto-approve -input=false -parallelism=1 planfile
+
+     Csak akkor fut le, ha:
+       A GitHub ref == refs/heads/main
+       Az esemény push típusú (github.event_name == 'push')
+
+       - name: Terrafrom Apply
+         id: apple
+         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+         run: terraform apply -auto-approve -input=false -parallelism=1 planfile
+
+3. Ingress Controller telepítése (kubectl)
+     Szükség van az Nginx Ingress Controller telepítésére:
+
+kubectl apply -f ingress-controller.yaml
+
+Előfeltétele: kubeconfig fájl rendelkezésre állása:
+
+aws eks update-kubeconfig --region <region> --name <cluster-name>
+
+       - name: Configure AWS credentials
+         uses: aws-actions/configure-aws-credentials@v1
+         with:
+           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           aws-region: ${{ env.AWS_REGION }}
+
+       - name: Get Kube config file
+         id: getconfig
+         if: steps.apple.outcome == 'success'
+         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+       - name: Install Ingress controller
+         if: steps.apple.outcome == 'success' && steps.getconfig.outcome == 'success'
+         run: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.1.3/deploy/static/provider/aws/deploy.yaml
+
+4. AWS CLI hitelesítés
+     Az AWS CLI futtatásához a következőkre van szükség:
+       Access key és Secret key
+       Ezeket a GitHub Actions workflow-ban adjuk át környezeti változóként
+
+5. Feltételes parancs végrehajtás
+   A kubectl apply parancs csak akkor fut le, ha:
+     A Terraform Apply sikeres (steps.apply.result == success)
+     A kubeconfig lekérése sikeres (steps.getconfig.result == success)
+
+Mentés:
+  VSCode-ban ctrl+s -> Source Control -> Commit&Push
+  Commit üzenet javaslat:
+  "terraform apply steps included"
+   pipa -> save
+  Vagy ha terminálban csináltad akkor
+    git add .
+    git commit -m "terraform apply steps included"
+    git push origin stage
+
+Tesztelés és Workflow működés
+  6. Tesztelés staging ágon
+       A staging ágon csak a terraform plan fut le.
+       Mivel nem a main ág, ezért terraform apply nem történik.
+
+  7. Módosítások staging ágon
+       Kisebb módosítást hajtunk végre, pl. a variables.tf fájlban
+       Commit és push a staging ágra -> csak a plan fut
+
+  8. Merge staging -> main
+       Lokálisan a staging ág egyesítése a main ággal. nyísuk meg a terminált
+
+cd Desktop/Krissz91/main-iac	# (main ágban leszel)
+git pull
+git status			# így is látható, hogy a main ágban vagyunk
+ls				# README.md és terraform mappát fogunk látni
+git checkout stage		# stage-be lépünk
+git checkout main		# vissza lépünk a main-be
+git merge stage
+:wq				# ha vim szerkesztőbe lépsz így lépsz ki
+git push origin main
+
+  9. GitHub Actions workflow aktiválása
+       A main ágra való push hatására elindul a workflow
+       A terraform apply és az Ingress Controller telepítése megtörténik
+
+Branch Protection (Ajánlás valós projekthez)
+  A main ágra történő közvetlen push letiltása
+  Pull request kötelezővé tétele (branch protection rule)
+  Merge előtt review és validáció szükséges
+
+Telepítés utáni állapot (AWS konzolban ellenőrizhető)
+  Létrejött:
+    EKS klaszter
+    Csomópontcsoport(ok)
+    VPC, alhálózatok (public/private)
+    NAT gateway + elastic IP
+    Nginx Ingress Controller -> Load Balancer
+  Az EC2-ben láthatók az aktív Kubernetes node-ok is
+
+Pull Request Workflow (ajánlott gyakorlat)
+  Staging ágból -> Pull Request a main ágba
+  A PR automatikusan validálható és összeolvasható
+  Merge után ismét fut a GitHub Actions -> terraform apply
+
 folyt köv
