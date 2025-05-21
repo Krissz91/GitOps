@@ -196,3 +196,5 @@ git status		# On branch stage
   Minden fejlesztést a stage branchben végezz!
   Ha kész és tesztelt a változtatás, merge a main ágba.
   A main ághoz tartozik a Terraform apply -> infrastruktúra változások.
+
+folyt köv
