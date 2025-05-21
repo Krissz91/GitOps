@@ -246,14 +246,14 @@ Secrets hozzáadása: vprofile-action
   2. Hozz létre új titkokat:
        AWS_ACCESS_KEY_ID
        AWS_SECRET_ACCESS_KEY
-       AWS_ECR_REGISTRY -> ide az ECR URL kerül (lásd következő pont).
+       REGISTRY -> ide az ECR URL kerül (lásd következő pont).
 
 ECR tároló létrehozása
   1. Menj az ECR szolgáltatáshoz -> Create repository
   2. Adj nevet pl. vprofileapp -> Create repository
   3. Másold ki az ECR URI-t (pl. 123456789012.dkr.ecr.us-east-1.amazonaws.com/vprofileapp)
        Ne tartalmazza az utolsó részt /vprofileapp, csak az URI részt!
-  4. Illeszd be a AWS_ECR_REGISTRY Secret változóba a vprofile-action repo-ban.
+  4. Illeszd be a REGISTRY Secret változóba a vprofile-action repo-ban.
 
 Összefoglalás: Titkok összesítése
 
@@ -265,6 +265,102 @@ iac-vprofile titkai:
 vprofile-action titkai:
   AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY
-  AWS_ECR_REGISTRY
+  REGISTRY
+
+# Terraform projekt áttekintés---------------------------------------------------------------------
+  A Terraform kód két fő dolgot hoz létre:
+    VPC infrastruktúra
+    EKS fürt
+  Az iac-vprofile nevű tárolót nyisd meg a VS Code-ban.
+  A kódot nem magunk írjuk meg teljesen, hanem meglévő modulokra építjük.
+  A kódot GitHub Actions futtatja majd, így fontos, hogy stabil legyen és elkerüljük a duplikált erőforrásokat.
+
+Miért nem futtatjuk közvetlenül?
+  Hiba esetén részben létrejöhetnek erőforrások (VPC, EKS, KMS kulcsok).
+  Újrafuttatás duplikálhatja őket, ami költséges (főleg NAT gateway és EKS).
+  Ezért:
+    Előre megírt, dokumentált modulokat használunk.
+    Teszteld helyben, mielőtt GitHub Actionsből futtatod.
+
+Ágkezelés (branching)
+  Staging ágon dolgozz mindig, ne a main ágon!
+  Ellenőrizd az ágat a VS Code-ban, válts stagingre, ha szükséges.
+
+variables.tf fájl
+  Két változó van:
+    region -> us-east-1
+    cluster_name -> például vprofile-eks
+  Mentés: Ctrl + S
+
+terraform.tf fájl
+  Használt verziók:
+    Terraform: 1.6.3
+    AWS provider: 5.x
+  Ajánlott nem változtatni a verziókon, mert ezek stabilak, teszteltek.
+  Backend (S3):
+    Állapot (terraform.tfstate) tárolása központilag, S3-ban.
+    Szükséges paraméterek:
+      Bucket neve (vprofileactions91)
+      Kulcs (terraform.tfstate)
+      Régió (us-east-1)
+  Miért fontos? Mert a GitHub Actions konténere nem tartja meg lokálisan az állapotot.
+
+vpc.tf fájl – VPC modul használata
+  Forrás: Terraform AWS VPC modul
+  Paraméterek:
+    vpc_name, cidr, availability_zones (slice függvény adja)
+    private_subnets, public_subnets
+    enable_nat_gateway = true
+    single_nat_gateway = true (költségcsökkentés!)
+    enable_dns_hostnames = true
+  Címkék (az EKS működéséhez szükségesek):
+    Public subnet címkék:
+      kubernetes.io/cluster/<cluster_name> = shared
+      kubernetes.io/role/elb = 1
+    Private subnet címke:
+      kubernetes.io/role/internal-elb = 1
+
+ekscluster.tf fájl – EKS modul
+  Forrás: https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest
+  Modul verzió: 19.1
+  Beállítások:
+    cluster_name, cluster_version
+    vpc_id = module.vpc.vpc_id
+    subnet_ids = module.vpc.private_subnets
+    cluster_endpoint_public_access = true
+  Kezelt csomópontcsoportok (managed node groups):
+    Két csoport:
+      node-group-1
+        instance_type = t3.small
+        min_size = 1, max_size = 3, desired_size = 2
+      node-group-2
+        instance_type = t3.small
+        min_size = 1, max_size = 2, desired_size = 1
+
+outputs.tf fájl – Kimenetek
+  Kinyomtatott értékek:
+    cluster_name -> module.eks.cluster_name
+    cluster_endpoint -> module.eks.cluster_endpoint
+    region -> var.region
+    security_group_id
+
+Gyakorlati tanácsok:
+  A projekt fő fókusza: GitHub Actions munkafolyamat.
+  Először mindig teszteld a staging ágon.
+  Ha minden működik, merge a main ágba, és csak akkor alkalmazd.
+  Változások, amiket el kell menteni:
+    variables.tf -> cluster név frissítése
+    terraform.tf -> bucket név beállítása
+  
+Mentés:
+  VSCode-ban ctrl+s az összes .tf fájlnál -> Source Control -> Commit&Push
+  Commit üzenet javaslat:
+  "Bucket name & Cluster name updated"
+   pipa -> save
+  Vagy ha terminálban csináltad akkor
+    git add .
+    git commit -m "Bucket name & Cluster name updated"
+    git push origin stage
+
 
 folyt köv
