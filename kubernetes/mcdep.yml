@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vpromc
+  labels:
+    app: vpromc
+spec:
+  selector:
+    matchLabels:
+      app: vpromc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vpromc
+    spec:
+      containers:
+      - name: vpromc
+        image: memcached
+        ports:
+        - name: vpromc-port
+          containerPort: 11211
+
+# mcdep.yml
+# Ez egy Deployment típusú objektum, ami a Memcached (gyorsítótár) alkalmazást kezeli.
+
+# name: vpromc: A Deployment neve.
+# labels: app: vpromc: Label a Deployment azonosítására.
+# selector: matchLabels: app: vpromc: Ez a selector határozza meg, hogy mely Pod-okat kezelje ez a Deployment.
+# replicas: 1: Egyetlen példányban futtatja a Memcached Pod-ot.
+# template:: Itt található a Pod definíciója:
+# metadata: labels: app: vpromc: A Pod-hoz rendelt label, ami a mc-CIP.yml Service-éhez kapcsolódik.
+# containers: - name: vpromc image: memcached: Egy memcached konténert futtat.
+# ports: - name: vpromc-port containerPort: 11211: A konténer 11211-es portja a vpromc-port néven.
+
+# Kapcsolat: Ez a Deployment hozza létre a Memcached Pod-ot, amit a mc-CIP.yml Service tesz elérhetővé más szolgáltatások számára.

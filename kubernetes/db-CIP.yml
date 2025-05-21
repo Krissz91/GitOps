@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vprodb
+spec:
+  ports:
+  - port: 3306
+    targetPort: vprodb-port
+    protocol: TCP
+  selector:
+    app: vprodb
+  type: ClusterIP
+
+# db-CIP.yml
+# Ez egy Service típusú objektum, ami a vprodb (adatbázis) Deployment-hez biztosít hálózati hozzáférést a clusteren belül.
+
+# name: vprodb: A Service neve.
+# type: ClusterIP: Ez a Service csak a clusteren belülről érhető el egy belső IP címen keresztül.
+# ports: - port: 3306 targetPort: vprodb-port: A Service a 3306-os porton figyel, és a Pod-ok vprodb-port nevű portjára irányítja a forgalmat.
+# selector: app: vprodb: Ez a selector köti össze a Service-t a vprodb label-el rendelkező Pod-okkal (amit a vprodbdep.yml hoz létre).
+
+# Kapcsolat: Ez a Service teszi lehetővé, hogy a vproapp (alkalmazás) Pod-ok elérjék a vprodb adatbázis Pod-okat a vprodb hostname-en keresztül.

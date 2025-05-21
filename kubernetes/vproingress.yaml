@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vpro-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: vprofile.thehkh.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-app
+            port:
+              number: 8080
+
+# vproingress.yaml
+# Ez egy Ingress típusú objektum, ami külső hozzáférést biztosít az alkalmazáshoz.
+# Az Ingress egy HTTP/HTTPS útválasztót definiál, ami a külső forgalmat a clusteren belüli Service-ekhez irányítja.
+
+# name: vpro-ingress: Az Ingress neve.
+
+# annotations: nginx.ingress.kubernetes.io/use-regex: "true":
+# Annotációk az Ingress Controller konfigurálásához (itt nginx-et használ, és regex-et engedélyez).
+
+# ingressClassName: nginx: Meghatározza, hogy melyik Ingress Controller (ebben az esetben nginx) felelős az Ingress szabályok kezeléséért.
+# rules:: Útválasztási szabályok:
+#   host: vprofile.thehkh.com: Ha a vprofile.thehkh.com domainen érkezik kérés.
+#   http: paths: - path: / pathType: Prefix: Bármilyen útvonal (/) kezdetű kérést...
+#   backend: service: name: my-app port: number: 8080: ...a my-app nevű Service 8080-as portjára irányítja.
+
+# Kapcsolat: Ez az Ingress biztosítja, hogy a külső felhasználók a vprofile.thehkh.com
+# URL-en keresztül elérjék a vproapp alkalmazást, amihez a vproapp-service.yml Service-en keresztül csatlakozik.

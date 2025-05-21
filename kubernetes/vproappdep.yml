@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vproapp
+  labels:
+    app: vproapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vproapp
+  template:
+    metadata:
+      labels:
+        app: vproapp
+    spec:
+      containers:
+      - name: vproapp
+        image: vprofile/vprofileapp
+        ports:
+        - name: vproapp-port
+          containerPort: 8080
+      initContainers:
+      - name: init-mydb
+        image: busybox
+        command: ['sh', '-c', 'until nslookup vprodb.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for mydb; sleep 2; done;']
+      - name: init-memcache
+        image: busybox
+        command: ['sh', '-c', 'until nslookup vprocache01.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for mydb; sleep 2; done;']
+
+# vproappdep.yml
+# Ez egy Deployment típusú objektum, ami a fő alkalmazás (vprofile/vprofileapp) futását kezeli.
+
+# name: vproapp: A Deployment neve.
+# labels: app: vproapp: Label a Deployment azonosítására.
+# replicas: 1: Egyetlen példányban futtatja az alkalmazás Pod-ot.
+# selector: matchLabels: app: vproapp: Mely Pod-okat kezelje ez a Deployment.
+# template:: Itt található a Pod definíciója:
+#   metadata: labels: app: vproapp: A Pod-hoz rendelt label, ami a vproapp-service.yml Service-éhez kapcsolódik.
+#   containers: - name: vproapp image: vprofile/vprofileapp: Egy vprofile/vprofileapp nevű konténert futtat.
+#   ports: - name: vproapp-port containerPort: 8080: A konténer 8080-as portja a vproapp-port néven.
+
+#   initContainers:: Ezek olyan konténerek, amelyek futnak és befejeződnek, mielőtt a fő alkalmazás konténerek elindulnának.
+#   Ezek biztosítják, hogy a függőségek (adatbázis, cache) elérhetők legyenek, mielőtt az alkalmazás elindul.
+
+#     init-mydb: Ellenőrzi, hogy a vprodb Service elérhető-e a DNS-en keresztül.
+#     init-memcache: Ellenőrzi, hogy a vprocache01 Service elérhető-e a DNS-en keresztül.
+
+# Kapcsolat: Ez a Deployment hozza létre a fő alkalmazás Pod-ot, ami a vprodb és vprocache01 Service-ekre támaszkodik,
+# és amit a vproapp-service.yml Service tesz elérhetővé, majd az vproingress.yaml Ingress publikál.

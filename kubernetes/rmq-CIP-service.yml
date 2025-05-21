@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vpromq01
+spec:
+  ports:
+  - port: 5672
+    targetPort: vpromq01-port
+    protocol: TCP
+  selector:
+    app: vpromq01
+  type: ClusterIP
+
+# rmq-CIP-service.yml
+# Ez egy Service típusú objektum, ami a vpromq01 (RabbitMQ) Deployment-hez biztosít hálózati hozzáférést a clusteren belül.
+
+# name: vpromq01: A Service neve.
+
+# type: ClusterIP: Csak a clusteren belülről érhető el.
+
+# ports: - port: 5672 targetPort: vpromq01-port: A Service az 5672-es porton figyel,
+# és a Pod-ok vpromq01-port nevű portjára irányítja a forgalmat.
+# (Megjegyzés: A RabbitMQ általában az 5672-es porton fut az üzenetekhez, és a 15672-es porton a management UI-hoz.
+# A rmq-dep.yml a 15672-es portot definiálja vpromq01-port néven, ami ellentmondásos lehet, ha az üzenetküldés a cél.
+# Valószínűleg a targetPort-nak is 5672-nek kéne lennie, ha csak az üzenetküldésről van szó,
+# vagy a 15672-es portnak, ha a management UI-t is elérhetővé akarjuk tenni ezen a Service-en keresztül.)
+
+# selector: app: vpromq01: Ez a selector köti össze a Service-t a vpromq01 label-el rendelkező Pod-okkal (amit a rmq-dep.yml hoz létre).
+
+# Kapcsolat: Ez a Service teszi lehetővé, hogy az alkalmazás (vagy más szolgáltatások) elérjék
+# a vpromq01 (RabbitMQ) Pod-okat a vpromq01 hostname-en keresztül.

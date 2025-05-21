@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vprodb
+  labels:
+    app: vprodb
+spec:
+  selector:
+    matchLabels:
+      app: vprodb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vprodb
+    spec:
+      containers:
+      - name: vprodb
+        image: vprofile/vprofiledb
+        ports:
+        - name: vprodb-port
+          containerPort: 3306
+        env:
+         - name: MYSQL_ROOT_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: app-secret
+               key: db-pass
+#        env:
+#         - name: MYSQL_ROOT_PASSWORD
+#           value: "vprodbpass"
+
+
+# vprodbdep.yml
+# Ez egy Deployment típusú objektum, ami a MySQL adatbázist kezeli.
+
+# name: vprodb: A Deployment neve.
+# labels: app: vprodb: Label a Deployment azonosítására.
+# selector: matchLabels: app: vprodb: Mely Pod-okat kezelje ez a Deployment.
+# replicas: 1: Egyetlen példányban futtatja az adatbázis Pod-ot.
+# template:: Itt található a Pod definíciója:
+#   metadata: labels: app: vprodb: A Pod-hoz rendelt label, ami a db-CIP.yml Service-éhez kapcsolódik.
+#   containers: - name: vprodb image: vprofile/vprofiledb: Egy vprofile/vprofiledb nevű MySQL konténert futtat.
+#   ports: - name: vprodb-port containerPort: 3306: A konténer 3306-os portja (MySQL alapértelmezett portja) a vprodb-port néven.
+#   env:: Környezeti változók:
+#     MYSQL_ROOT_PASSWORD: A jelszó beolvasása az app-secret Secret db-pass kulcsából.
+
+# Kapcsolat: Ez a Deployment hozza létre a MySQL adatbázis Pod-ot, ami az app-secret.yml-ből kapja meg a jelszavát,
+# és amit a db-CIP.yml Service tesz elérhetővé.

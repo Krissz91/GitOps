@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vpromq01
+  labels:
+    app: vpromq01
+spec:
+  selector:
+    matchLabels:
+      app: vpromq01
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vpromq01
+    spec:
+      containers:
+      - name: vpromq01
+        image: rabbitmq
+        ports:
+        - name: vpromq01-port
+          containerPort: 15672
+        env:
+         - name: RABBITMQ_DEFAULT_PASS
+           valueFrom:
+             secretKeyRef:
+               name: app-secret
+               key: rmq-pass
+         - name: RABBITMQ_DEFAULT_USER
+           value: "guest"
+
+# rmq-dep.yml
+# Ez egy Deployment típusú objektum, ami a RabbitMQ üzenetsor alkalmazást kezeli.
+
+# name: vpromq01: A Deployment neve.
+# labels: app: vpromq01: Label a Deployment azonosítására.
+# selector: matchLabels: app: vpromq01: Mely Pod-okat kezelje ez a Deployment.
+# replicas: 1: Egyetlen példányban futtatja a RabbitMQ Pod-ot.
+# template:: Itt található a Pod definíciója:
+#   metadata: labels: app: vpromq01: A Pod-hoz rendelt label, ami a rmq-CIP-service.yml Service-éhez kapcsolódik.
+#   containers: - name: vpromq01 image: rabbitmq: Egy rabbitmq konténert futtat.
+
+#   ports: - name: vpromq01-port containerPort: 15672: A konténer 15672-es portja a vpromq01-port néven.
+#   Ez valószínűleg a RabbitMQ management UI portja.
+
+#   env:: Környezeti változók:
+#     RABBITMQ_DEFAULT_PASS: A jelszó beolvasása az app-secret Secret rmq-pass kulcsából.
+#     RABBITMQ_DEFAULT_USER: A felhasználónév "guest" értékre van állítva.
+
+# Kapcsolat: Ez a Deployment hozza létre a RabbitMQ Pod-ot, ami az app-secret.yml-ből kapja meg a jelszavát,
+# és amit a rmq-CIP-service.yml Service tesz elérhetővé.

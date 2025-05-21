@@ -1,0 +1,23 @@
+1. Secret-ek (app-secret.yml): Első lépésben létrejönnek a jelszavak, biztonságosan tárolva. 
+   Ez a Kubernetes jó gyakorlata az érzékeny adatok kezelésére.
+
+2. Deployment-ek (mcdep.yml, rmq-dep.yml, vprodbdep.yml, vproappdep.yml):
+     Ezek a fájlok definiálják és biztosítják, hogy az alkalmazás egyes komponensei (Memcached, RabbitMQ, MySQL, a fő alkalmazás)
+     futnak a clusteren belül, a megadott Docker image-ekből.
+     A MySQL (vprodbdep.yml) és a RabbitMQ (rmq-dep.yml) Deployment-ek a app-secret.yml-ből veszik fel a jelszavukat.
+     Az alkalmazás (vproappdep.yml) initContainers-eket használ, hogy megvárja az adatbázis (vprodb) és a Memcached (vprocache01) Service-ek
+     elérhetőségét, mielőtt maga elindulna. Ez biztosítja a komponensek megfelelő sorrendű indítását és függőségeik kezelését.
+
+3. Service-ek (db-CIP.yml, mc-CIP.yml, rmq-CIP-service.yml, vproapp-service.yml):
+     Minden Deployment-hez tartozik egy ClusterIP Service. Ezek a Service-ek stabil belső IP címeket és DNS neveket biztosítanak a Pod-ok számára.
+     Például, a vprodb Service (a db-CIP.yml-ből) lehetővé teszi, hogy a vproapp konténer a vprodb DNS névvel hivatkozzon
+     a MySQL adatbázisra, anélkül, hogy tudnia kellene az adatbázis Pod IP címét, ami dinamikusan változhat.
+     A selector mező kulcsfontosságú: összeköti a Service-eket a megfelelő Deployment-ek által létrehozott Pod-okkal (a labels alapján).
+
+4. Ingress (vproingress.yaml):
+   Az Ingress felelős a külső forgalom kezeléséért és annak a megfelelő belső Service-hez (my-app azaz vproapp-service) való irányításáért.
+   A vprofile.thehkh.com domainre érkező kéréseket a my-app Service 8080-as portjára továbbítja, ami az alkalmazás Pod-okat éri el.
+
+Ez az architektúra egy tipikus mikroservice alapú alkalmazás elrendezést mutat be Kubernetesen, ahol külön komponensek felelősek az adatbázisért,
+cache-ért, üzenetsorért és magáért az alkalmazásért, mindegyik izoláltan fut,
+és Service-eken keresztül kommunikálnak egymással, külső hozzáférés pedig egy Ingressen keresztül történik.

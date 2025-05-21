@@ -620,4 +620,82 @@ Pull Request Workflow (ajánlott gyakorlat)
   A PR automatikusan validálható és összeolvasható
   Merge után ismét fut a GitHub Actions -> terraform apply
 
+
+# Általános workflow áttekintés--------------------------------------------------------------------
+
+  EKS fürt létrehozva, készen áll a használatra.
+  Terraform változtatások workflow-on keresztül alkalmazódnak
+  (először stage-en tesztelve, majd main ágba mergelve deploy).
+  Az alkalmazás (Vprofile) egy külön Git tárolóban van, ahol külön workflow kezeli a CI/CD folyamatokat.
+
+CI/CD Workflow lépései az alkalmazásnál
+  1. Forráskód lehívása GitHub Actions használatával.
+  2. Kód tesztelése:
+       mvn test – egységtesztek.
+       mvn checkstyle:checkstyle – kódstílus ellenőrzés.
+  3. Kódelemzés SonarCloud segítségével:
+       SonarScanner CLI használatával.
+       Feltöltés a SonarCloudra (kód, checkstyle, teszt reportok).
+  4. Minőségkapu ellenőrzés (Quality Gate):
+       Alapértelmezett Quality Gate-et használ.
+       Hiba esetén saját Quality Gate is beállítható.
+
+SonarCloud beállítása
+  Fiók létrehozása: https://sonarcloud.io
+  Új szervezet (pl. Name/Key: vprofile-actions91) és projekt (Name/Key: vproapp91) létrehozása.
+  Token generálása (gitops) és GitHub Secrets-ben elmentve:
+    SONAR_TOKEN = pl.: 886271fdbada1a4f49cd252ef3f051f281260663
+    SONAR_ORGANIZATION = vprofile-actions91
+    SONAR_PROJECT_KEY = vproapp91
+    SONAR_URL = https://sonarcloud.io
+
+Docker és Kubernetes
+  VSCode-ot nyisd meg -> Open Folder (/Desktop/Krissz91/vprofile-action)
+  Dockerfile: alkalmazás kép létrehozása Tomcat alapon.
+  Kubernetes YAML fájlok a telepítéshez (korábbi projektekből átvett logika).
+  Helm chart segítségével parametrizálható telepítés.
+    values.yaml fájlban adhatók meg változók.
+  NGINX ingress controller már telepítve (EKS setup során).
+    Használatával az app elérhető pl. vprofile.thehkh.com címen.
+    Saját domaint kell megadni a Ingress fájlban.
+
+GitHub Actions Workflow fájl
+  Útvonal: .github/workflows/main.yml
+  Munkafolyamat neve: vprofile actions
+  Trigger: kezdetben workflow_dispatch (kézi indítás), később push.
+  Fontos környezeti változók:
+    AWS_REGION (pl. us-east-1)
+    ECR_REPOSITORY (pl. vprofileapp)
+    EKS_CLUSTER (pl. vprofile-eks)
+
+Workflow lépések részletezése
+1. Tesztelési job
+     runs-on: ubuntu-latest
+     Lépések:
+       1.Checkout kód.
+       2. Maven teszt (mvn test).
+       3. Maven checkstyle (mvn checkstyle:checkstyle).
+       4. Java 11 beállítása (actions/setup-java).
+       5. SonarScanner CLI beállítása (warchant/setup-sonar-scanner).
+       6. sonar-scanner parancs futtatása titkos változókkal.
+       7. Quality Gate ellenőrzés (SonarSource/sonarcloud-quality-gate-action).
+
+Mentés:
+  VSCode-ban ctrl+s -> Source Control -> Commit&Push
+  Commit üzenet javaslat:
+  "Code test"
+   pipa -> save
+  Vagy ha terminálban csináltad akkor (persz győződj meg róla, hogy a vprofile-actions mappában csináltad a main.yml fájlt és töltöd fel)
+    git add .
+    git commit -m "Code test"
+    git push origin main
+   
+Menj a repoba -> Actions -> vprofile actions -> Run workflow
+
+Tipikus hibák és javítások:
+  Hiba: SONAR_URL titok hiányzik -> hozzá kell adni (https://sonarcloud.io).
+  Quality Gate hiba:
+    Átmeneti megoldás: Quality Gate ellenőrzés eltávolítása.
+    Jobb megoldás: új, saját Quality Gate létrehozása és hozzárendelése a projekthez.
+
 folyt köv
