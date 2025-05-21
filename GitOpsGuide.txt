@@ -112,11 +112,11 @@ Megjegyzés:
 
 1. Fork & Clone – Tárolók előkészítése
     Nyisd meg a GitHub oldalt és jelentkezz be.
-    Navigálj az alábbi URL-re: https://github.com/hkhcoder/iac-vprofile
+    Navigálj az alábbi URL-re: https://github.com/username/iac-vprofile
     Kattints a legördülő menüre és válaszd: "Create new fork"
     Vedd ki a pipát a "Copy the main branch only" opció elől – szükség van main és stage ágakra is.
     Kattints a "Create Fork" gombra.
-    Ismételd meg a folyamatot a másik repository-val: https://github.com/hkhcoder/vprofile-action
+    Ismételd meg a folyamatot a másik repository-val: https://github.com/username/vprofile-action
     Kattints a legördülő menüre és válaszd: "Create new fork"
     (Ebben csak a main ág van, ott nem baj, ha marad a pipa.)
     Kattints a "Create Fork" gombra.
@@ -149,14 +149,14 @@ cd ~/Desktop/Krissz91
 
 6. Klónozd a tárolókat SSH-val
   IAC repo:
-    Navigálj az alábbi URL-re: https://github.com/hkhcoder/iac-vprofile
+    Navigálj az alábbi URL-re: https://github.com/username/iac-vprofile
     Kattints a Code-ra és az ssh URL-t másold ki és a mappaban (/Desktop/Krissz91) a git clone parancs után máasold be az URL-t.
-    git clone git@github.com:devops4sure/iac-vprofile.git
+    git clone git@github.com:username/iac-vprofile.git
 
   Action repo:
-    Navigálj az alábbi URL-re: https://github.com/hkhcoder/vprofile-action
+    Navigálj az alábbi URL-re: https://github.com/username/vprofile-action
     Kattints a Code-ra és az ssh URL-t másold ki és a mappaban (/Desktop/Krissz91) a git clone parancs után máasold be az URL-t.
-    git clone git@github.com:devops4sure/vprofile-action.git
+    git clone git@github.com:username/vprofile-action.git
     ls paranccsal ellenőrizzük, hogy megvan-e a kettő mappa vprofile-action és iac-vprofile
 
 7. Git repo konfigurálása az SSH kulcs használatára
