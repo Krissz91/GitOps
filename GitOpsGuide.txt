@@ -362,5 +362,151 @@ Mentés:
     git commit -m "Bucket name & Cluster name updated"
     git push origin stage
 
+# GitHub Actions – Alapok és első munkafolyamat----------------------------------------------------
+
+Bevezetés:
+  A GitHub Actions lehetővé teszi CI/CD folyamatok létrehozását közvetlenül a GitHub tárolón belül.
+  Nincs szükség különálló CI/CD eszközökre, mint a Jenkins.
+
+Munkafolyamat (workflow) létrehozása VSCode-ban:
+  1. A munkafolyamat YAML fájl formájában készül.
+  2. Mappa struktúra a tároló gyökerében (iac-vprofile):
+       .github/workflows
+  3. Példa fájl: terraform.yml (iac-vprofile/.github/workflows/terraform.yml)
+
+Munkafolyamat felépítése
+  1. Név megadása:
+
+name: "Vprofile IAC"
+
+  2. Esemény, ami elindítja (triggereli):
+
+on:
+  push:
+    branches:
+      - main
+      - stage
+    paths:
+      - terraform/**
+  pull_request:
+    branches:
+      - main
+    paths:
+      - terraform/**
+
+  3. Környezeti változók (environment variables)
+       YAML szinten definiálva env: kulcsszó alatt.
+       Használt titkos kulcsok a GitHub Secrets-ben tárolva:
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE }}
+  AWS_REGION: "us-east-1"
+  EKS_CLUSTER: vprofile-eks
+
+  4. Felépítés: Job-ok és Steps-ek
+       Jobs szintaxis:
+
+jobs:
+  terraform:
+    name: "Apply terraform code changes"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
+
+  5. Lépések (steps)
+       a. Kód letöltése (Checkout):
+
+steps:
+  - name: Checkout source code
+    uses: actions/checkout@v4	# Forrás: https://github.com/marketplace/actions/checkout
+
+       b. Terraform telepítése GitHub Action segítségével:
+
+  - name: Setup Terraform with specified version on the runner
+    uses: hashicorp/setup-terraform@v2	# Forrás: https://github.com/marketplace/actions/hashicorp-setup-terraform?version=v2.0.3
+    #with:
+    #  terraform_version: 1.6.3
+
+Futók (Runners)
+  A GitHub biztosít előre elkészített futókat, például:
+    ubuntu-latest – ez tartalmaz sok előtelepített csomagot.
+  Minden futás egy konténerben történik, ide kerül a forráskód és a parancsok végrehajtása.
+
+Fontos megjegyzések
+  A forráskódot mindig le kell ellenőrizni (checkout), még ha saját tárolón belül vagyunk is.
+  A setup-terraform művelet automatikusan telepíti a kívánt verziót.
+  Az env változók révén adhatjuk át az AWS hitelesítő adatokat és más beállításokat.
+
+1. Terraform Init
+     Létrehoztatok egy lépést a terraform init futtatására.
+     A backend bucket nevét környezeti változóból ($BUCKET_TF_STATE) vettétek.
+     Ez beállítja, hogy a Terraform hol tárolja az állapotot (pl. S3).
+
+  - name: Terraform init
+    id: init
+    run: terraform init -backend-config="bucket=$BUCKET_TF_STATE"
+
+2. Terraform Format Check (terraform fmt -check)
+     Formázási ellenőrzés, ami csak akkor megy át, ha a .tf fájlok megfelelnek a hivatalos formátumnak.
+     Ha nem, a lépés hibát dob, és a workflow megbukik.
+
+  - name: Terraform format
+    id: fmt
+    run: terraform fmt -check
+
+3. Terraform Validate
+     Ellenőrzi a konfiguráció szintaktikai helyességét.
+     Ez már nem csak formázás, hanem a HCL logikai struktúráját is vizsgálja.
+
+  - name: Terraform validate
+    id: validate
+    run: terraform validate
+
+4. Terraform Plan
+     Száraz futtatás (terraform plan) --no-color, -input=false, -out=tfplan opciókkal.
+     Ezzel elkerülhetők az interaktív kérdések és a színes kimenet.
+     A kimenet fájlba kerül, amit majd az apply használhat.
+
+  - name: Terraform plan
+    id: plan
+    run: terraform plan -no-color -input=false -out planfile
+    continue-on-error: true
+
+5. Plan kimenet ellenőrzése
+     A steps.plan.outcome == 'failure' feltétellel egy explicit hibakezelő lépés van.
+     Ha a plan hibázik, a munkafolyamat kilép (exit 1), ezzel meghiúsítva a folytatást.
+
+  - name: Terraform plan status
+    id: steps.plan.outcome == 'failure'
+    run: exit 1
+
+Mentés:
+  VSCode-ban ctrl+s -> Source Control -> Commit&Push
+  Commit üzenet javaslat:
+  "staging workflow"
+   pipa -> save
+  Vagy ha terminálban csináltad akkor
+    git add .
+    git commit -m "staging workflow"
+    git push origin stage
+
+6. Alkalmazás a staging-en nem történik meg
+     A staging ágban csak a plan fut, az apply nem.
+     A változások tesztelhetők, de még nem történik véglegesítés az infrastruktúrában.
+
+7. Tesztelés GitHub Actions segítségével
+     Kisebb változtatással (pl. komment a variables.tf-ben) tesztelted, hogy a workflow kiváltódik-e.
+     A workflow csak akkor fut le, ha a módosítás a terraform mappában történik és az ágon push történik.
+
+Amit ki lehet emelni tanulságként:
+  Terraform best practice: mindig használj terraform fmt, validate, plan lépéseket.
+  GitHub Actions: a step.id megadása segíti a következő lépésekben az if feltételek, vagy a step.outputs használatát.
+  Biztonság és tisztaság: környezeti változók használata a bucket és más érzékeny adatok kezelésére.
+  Tiszta naplózás: színek nélkül, interakciómentesen fut, így automatizált környezetben is jól viselkedik.
+  Apply csak main-en: staging csak plan-t futtat, élesítés csak a main ágon történik – ez jó gyakorlat.
 
 folyt köv
