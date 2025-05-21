@@ -1,4 +1,4 @@
-GitOps bevezetes-----------------------------------------------------------------------------------
+# GitOps bevezetes-----------------------------------------------------------------------------------
 
 Mi az a GitOps?
   - A GitOps a DevOps egy alcsoportja, és egy olyan stratégia, amely a mai kor igényeihez igazodik.
@@ -196,5 +196,75 @@ git status		# On branch stage
   Minden fejlesztést a stage branchben végezz!
   Ha kész és tesztelt a változtatás, merge a main ágba.
   A main ághoz tartozik a Terraform apply -> infrastruktúra változások.
+
+# GitHub Secrets – Lépésenkénti útmutató-------------------------------------------------------------
+
+Általános áttekintés
+  Most AWS hozzáférési kulcsokat, egy S3 vödröt, és egy ECR tárolót fogunk létrehozni.
+  Ezeket az információkat GitHub Secrets-ben tároljuk, két tárolóban:
+    iac-vprofile
+    vprofile-action
+
+GitHub Secrets előkészítése
+  1. Nyisd meg mindkét GitHub repository-t: iac-vprofile és vprofile-action.
+  2. Navigálj ide:
+       Settings -> Secrets and variables -> Actions
+  3. Hagyd nyitva mindkét fülön, mert hamarosan ide kell másolni a kulcsokat.
+
+IAM felhasználó létrehozása (AWS)
+  1. Lépj be az AWS konzolra.
+  2. Válassz egy régiót – ezt a projekt végéig tartsd meg. (us-east-1)
+  3. Menj az IAM szolgáltatáshoz:
+       Users -> Create user
+  4. Nevezd el pl. gitops
+  5. Jogosultság:
+       Attach policies directly -> válaszd a AdministratorAccess jogosultságot.
+       (Ez nem ajánlott éles környezetben, csak oktatási célból történik.)
+
+Hozzáférési kulcs létrehozása
+  1. Kattints a felhasználóra -> Security credentials
+  2. Görgess le -> Create access key -> válaszd a CLI opciót
+  3. Hozz létre kulcsot -> másold le az Access key ID-t és a Secret Access key-t.
+
+Ne töltsd le a CSV fájlt és ne tárold helyben – titkosítási szivárgás elkerülése érdekében.
+
+Secrets hozzáadása: iac-vprofile
+  1. Menj a iac-vprofile repo-ba -> Settings -> Secrets and variables -> Actions
+  2. Hozz létre új titkokat:
+       AWS_ACCESS_KEY_ID -> ide illeszd be az access key-t.
+       AWS_SECRET_ACCESS_KEY -> ide a titkos kulcsot.
+       BUCKET_TF_STATE -> ide az S3 vödör nevét (lásd következő pont).
+
+S3 vödör létrehozása
+  1. Menj az S3 szolgáltatáshoz -> Create bucket
+  2. Adj egyedi nevet pl. vprofileactions91 (egyedi legyen)
+  3. Figyelj arra, hogy ugyanabban a régióban legyen, mint amit korábban választottál.
+  4. A vödör nevét másold be a BUCKET_TF_STATE GitHub Secret-be (csak az iac-vprofile repo-ba).
+
+Secrets hozzáadása: vprofile-action
+  1. Menj a vprofile-action repo-ba -> Settings -> Secrets and variables -> Actions
+  2. Hozz létre új titkokat:
+       AWS_ACCESS_KEY_ID
+       AWS_SECRET_ACCESS_KEY
+       AWS_ECR_REGISTRY -> ide az ECR URL kerül (lásd következő pont).
+
+ECR tároló létrehozása
+  1. Menj az ECR szolgáltatáshoz -> Create repository
+  2. Adj nevet pl. vprofileapp -> Create repository
+  3. Másold ki az ECR URI-t (pl. 123456789012.dkr.ecr.us-east-1.amazonaws.com/vprofileapp)
+       Ne tartalmazza az utolsó részt /vprofileapp, csak az URI részt!
+  4. Illeszd be a AWS_ECR_REGISTRY Secret változóba a vprofile-action repo-ban.
+
+Összefoglalás: Titkok összesítése
+
+iac-vprofile titkai:
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+  BUCKET_TF_STATE
+
+vprofile-action titkai:
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+  AWS_ECR_REGISTRY
 
 folyt köv
