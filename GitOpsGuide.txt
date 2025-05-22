@@ -698,4 +698,206 @@ Tipikus hibák és javítások:
     Átmeneti megoldás: Quality Gate ellenőrzés eltávolítása.
     Jobb megoldás: új, saját Quality Gate létrehozása és hozzárendelése a projekthez.
 
-folyt köv
+# Docker Image Build és ECR-re való Publikálás összefoglaló----------------------------------------
+
+Miután a kód sikeresen lefutott és a tesztek is rendben vannak,
+a következő lépés a Docker image elkészítése és feltöltése az AWS ECR (Elastic Container Registry)-be.
+
+1. Új GitHub Actions munka: BUILD_AND_PUBLISH szakasz a main.yaml-ban.
+     Hozzunk létre egy új munkát BUILD_AND_PUBLISH néven.
+     Ez csak a TEST nevű munka után fusson, ehhez a needs: TEST kulcsot kell használni.
+     A runs-on: ubuntu-latest legyen megadva.
+
+2. Lépések:
+     Első lépés: a forráskód checkout-ja a szokásos actions/checkout@v4 GitHub Action-nel.
+     A Docker image építéséhez és ECR-be tolásához az appleboy/docker-ecr-action action-t használjuk.
+
+3. Konfiguráció az appleboy/docker-ecr-action használatához:
+Forrás: https://github.com/marketplace/actions/docker-ecr
+
+- name: Build and Push Docker Image
+  uses: appleboy/docker-ecr-action@master
+  with:
+    access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    registry: ${{ secrets.AWS_REGISTRY_URI }}
+    repo: ${{ env.ECR_REPOSITORY }}
+    region: ${{ env.AWS_REGION }}
+    tags: latest,${{ github.run_number }}
+    dockerfile: ./Dockerfile
+    context: .
+
+Mentés:
+  VSCode-ban ctrl+s -> Source Control -> Commit&Push
+  Commit üzenet javaslat:
+  "Build and publish to ecr"
+   pipa -> save
+  Vagy ha terminálban csináltad akkor
+    git add .
+    git commit -m "Build and publish to ecr"
+    git push origin main
+
+Menj a repoba -> Actions -> vprofile actions -> Run workflow
+
+4. Fontos változók:
+     REGISTRY URI, ECR_REPOSITORY, AWS_REGION már előre definiálva vannak környezeti változóként.
+     Tagek: latest és a build egyedi azonosítója github.run_number alapján (pl. 6).
+
+5. Hibakezelés:
+     Figyeljünk a YAML behúzásokra, mert egy rossz indentálás (pl. lépések steps: alatt) hibát okozhat.
+     A GitHub Actions rögtön visszajelzést ad, ha hiba van a YAML fájlban.
+
+6. Eredmény:
+     Sikeres build után az image feltöltődik az ECR-be.
+     Megjelenik benne a latest és a run_number szerinti tag is.
+     Minden új commit esetén új tesztelés, új build, és új image készül az ECR-ben.
+
+# Helm chartok létrehozása és telepítése EKS-re GitHub Actions segítségével------------------------
+
+Cél:
+Ebben a fejezetben a Kubernetes definíciós fájlokat fogjuk Helm chartokká alakítani,
+és megtanuljuk, hogyan lehet ezeket a Helm chartokat telepíteni az EKS klaszterre egy
+GitHub Actions munkafolyamaton keresztül, dinamikus image címkézéssel.
+
+1. Helm telepítése
+Forrás: https://helm.sh/docs/intro/install/
+macOS esetén:
+
+brew install helm
+
+Windows esetén (Admin jogosultságú PowerShell):
+
+choco install kubernetes-helm
+
+2. Helm chartok létrehozása
+Navigáljunk a projekt gyökérmappájába:
+
+cd ~/Desktop/Krissz91/vprofile-action
+
+Hozzuk létre a chartot:
+
+helm create vprofilecharts
+ls				# Megjelenik egy vprofilecharts nevű mappa
+
+Mozgassuk ezt egy külön helm mappába:
+
+mkdir helm
+mv vprofilecharts helm/
+
+3. Alapértelmezett template-ek törlése
+Töröljük a templates/ mappában lévő alapértelmezett fájlokat:
+
+rm -rf helm/vprofilecharts/templates/*
+
+4. Saját Kubernetes YAML fájlok másolása
+Másoljuk be a meglévő definíciós fájlokat:
+
+cp kubernetes/vpro-app/* helm/vprofilecharts/templates/
+ls helm/vprofilecharts/templates/			# Ott lesz mind a 10 K8s yaml fájl
+
+5. Helm változók használata a definíciós fájlban
+Nyissuk meg a fő telepítési fájlt:
+
+cd helm/vprofilecharts/templates/
+nano vproappdep.yml
+
+Cseréljük ki a hardkódolt image nevet a következő változókra:
+
+image: "{{ .Values.appimage }}:{{ .Values.apptag }}"		# 19.sor
+
+Ezeket a változókat később a Helm parancs futtatásakor fogjuk átadni --set kapcsolóval.
+A values.yaml fájlban nem szükséges most megadni ezeket.
+
+6. Helm chart telepítés – elméleti példa
+A következő parancs manuálisan telepítené a chartot (nem szükséges lefuttatni):
+
+helm install vprofile-stack helm/vprofilecharts --set appimage=<image_uri> --set apptag=<tag>
+
+7. Helm chart telepítése GitHub Actions segítségével
+Most visszatérünk a GitHub Actions workflow-hoz, ahol hozzáadjuk az utolsó munkát:
+a telepítést EKS-re Helm chart segítségével.
+
+De előtte:
+Két fontos előkészületi lépés szükséges:
+  1. kubeconfig létrehozása
+  2. ECR hitelesítő adatok létrehozása Kubernetes titokként
+
+8. Workflow lépések – DeployToEKS
+1. Forráskód letöltése
+A repo és chartok eléréséhez.
+
+2. AWS hitelesítés
+
+- name: Configure AWS Credentials
+  uses: aws-actions/configure-aws-credentials@v1
+  with:
+    aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+    aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+    aws-region: ${{ secrets.AWS_REGION }}
+
+3. kubeconfig generálás
+
+   - name: Get Kube config file
+     run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+   - name: Print config file
+     run: cat ~/.kube/config
+
+Ne jelenítsd meg a .kube/config tartalmát workflow-ban – ez biztonsági kockázat!
+
+4. Docker registry titok létrehozása
+
+- name: Login to ECR
+     run: kubectl create secret docker-registry regcred --docker-server=${{ secrets.REGISTRY }} --docker-username=AWS  --docker-password=$(aws ecr get-login-password)
+
+5. Helm chart telepítése GitHub Action segítségével
+Forrás: https://github.com/marketplace/actions/deploy-helm-chart-to-aws-eks-cluster
+
+- name: Deploy Helm
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.8
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          cluster-name: ${{ env.EKS_CLUSTER }}
+          #config-files: .github/values/dev.yaml
+          chart-path: helm/vprofilecharts
+          namespace: default
+          values: appimage=${{ secrets.REGISTRY }}/${{ env.ECR_REPOSITORY }},apptag=${{ github.run_number }}
+          name: vprofile-stack
+
+Mentés:
+  VSCode-ban ctrl+s -> Source Control -> Commit&Push
+  Commit üzenet javaslat:
+  "Deploy helm charts"
+   pipa -> save
+  Vagy ha terminálban csináltad akkor
+    git add .
+    git commit -m "Deploy helm charts"
+    git push origin main
+
+Menj a repoba -> Actions -> vprofile actions -> Run workflow
+
+9. Ingress és domain beállítás
+Az Ingress fájlban megadott vprofile.thehk.com domaint konfigurálni kell:
+  Keressük meg az EKS-ben létrejött NGINX ingress controller által generált Load Balancer DNS nevet.
+  Lépj be a domain szolgáltatódhoz (pl. GoDaddy).
+  Hozz létre egy CNAME rekordot:
+    Név: vprofile
+    Érték: Load Balancer DNS neve
+Ne feledd: akár 5-10 perc is lehet, míg a DNS rekord életbe lép.
+
+10. Webalkalmazás elérése
+Ha minden jól ment:
+  Nyisd meg a böngészőt: http://vprofile.thehk.com	# Gyakori hiba: Figyelj, hogy ne https legyen hanem http! (80-as porton van nem pedig 443-ason)
+  Jelentkezz be:
+    Felhasználónév: admin_vp
+    Jelszó: admin_vp
+
+Gratulálok! A webalkalmazás sikeresen elérhető az EKS klaszteren keresztül, teljesen automatizált CI/CD csővezetéssel.
+
+Összefoglalás:
+  Helm chartokat hoztunk létre és paraméterizáltunk.
+  Automatikus Helm deploy-t valósítottunk meg GitHub Actions segítségével.
+  Az ECR image URI-t és címkét dinamikusan adtuk át.
+  A végső alkalmazás publikus domainen keresztül is elérhető lett.
