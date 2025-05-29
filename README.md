@@ -64,7 +64,7 @@ Automatizált telepítés: A teljes CI/CD folyamat, a kód véglegesítésétől
 
 Dinamikus címkézés: A Docker rendszerképeket a legújabb és a github.run_number címkékkel látják el a verziókövetés érdekében. Helm-diagramok: A Kubernetes telepítését Helm-diagramok segítségével kezelik a paraméteres és konzisztens telepítések érdekében. A rendszerkép-címkék dinamikusan kerülnek átadásra a Helm-diagramoknak a telepítés során.
 
-===========================================================================================================
+============================================================================================
 
 GitOps Project Overview
 This README provides a concise introduction to GitOps and outlines the architecture and steps involved in setting up a CI/CD pipeline using GitHub Actions, AWS, Terraform, Docker, and Helm.
